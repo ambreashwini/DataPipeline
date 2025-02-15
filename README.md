@@ -7,6 +7,14 @@ This project simulates energy data, stores it locally or uploads it to AWS S3, a
 - **S3Utils**: Handles AWS credentials validation and uploads data to S3.
 - **S3 Data Processor**: Processes S3 data and inserts records into DynamoDB.
 
+## Prerequisites
+1. Python 3.13 (tested) or Python 3.10+ (for broader compatibility)
+2. S3 Bucket: `energy-data-feed-dev` for storing data files.
+3. Lambda Function: `s3_data_processor` to process S3 events.
+4. DynamoDB Table: `SiteEnergyFeed` for storing processed records with partition key - `site_id (String)` and sort key - `timestamp (String)`
+5. IAM roles: `s3_data_processor-role-<actual_value>` for lambda function
+6. IAM User and permissions: Necessary permissions are granted for S3, Lambda, and DynamoDB access to IAM user
+
 ## Setup Instructions
 
 1. Clone the repository - `git clone <https://github.com/ambreashwini/DataPipeline.git>`
