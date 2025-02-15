@@ -23,10 +23,12 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1  #hardocded for now (can be configured)
+          aws-region: us-east-1  # hard coded for now (can be configured)
 
       - name: Initialize Terraform
         run: terraform init
+        working-directory: aws_config/dev  # path to tf file
 
       - name: Apply Terraform
         run: terraform apply -auto-approve
+        working-directory: aws_config/dev  # path to tf file
