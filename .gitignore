@@ -5,3 +5,8 @@ src/utils/__pycache__/__init__.cpython-313.pyc
 .idea/misc.xml
 .idea/inspectionProfiles/Project_Default.xml
 .idea/inspectionProfiles/profiles_settings.xml
+aws_config/dev/.terraform.lock.hcl
+aws_config/dev/.terraform/providers/registry.terraform.io/hashicorp/aws/5.87.0/darwin_amd64/LICENSE.txt
+aws_config/dev/.terraform/providers/registry.terraform.io/hashicorp/aws/5.87.0/darwin_amd64/terraform-provider-aws_v5.87.0_x5
+aws_config/dev/terraform.tfstate
+aws_config/dev/terraform.tfstate.backup
