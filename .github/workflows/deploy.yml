@@ -19,7 +19,7 @@ jobs:
         run: ls -R aws_config/dev  # check if dev.tf present
 
       - name: Wait for Files
-        run: sleep 5  # short delay to ensure files are fully available
+        run: sleep 10  # short delay to ensure files are fully available
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v1
@@ -31,14 +31,25 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1  # hard coded for now (can be configured)
+          aws-region: us-east-1  # hardcoded for now (can be configured)
+
+      - name: Debug - Verify Terraform Files Before Init
+        run: |
+          if [ ! -f "aws_config/dev/dev.tf" ]; then
+            echo "Error: dev.tf not found!"
+            exit 1
+          fi
+        shell: bash  # shell script
 
       - name: Initialize Terraform
         run: terraform init
         working-directory: aws_config/dev  # terraform path
 
-      - name: Debug - List Repo Files After Terraform Init
+      - name: Debug - Verify Terraform State After Init
         run: ls -R aws_config/dev  # terraform files
+
+      - name: Wait Before Terraform Apply
+        run: sleep 10  # allocating time for initializing
 
       - name: Apply Terraform
         run: terraform apply -auto-approve
