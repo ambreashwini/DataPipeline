@@ -42,7 +42,9 @@ jobs:
         shell: bash  # shell script
 
       - name: Remove AWS Profile for GitHub Actions
-        run: sed -i 's/profile = ".*"//g' aws_config/dev/dev.tf  # remove profile, not needed in github actions
+        run: |
+          sed -i '/profile =/d' aws_config/dev/dev.tf  # Delete any line containing "profile ="
+          cat aws_config/dev/dev.tf  # Debug to verify profile is removed # remove profile, not needed in github actions
 
       - name: Debug - Verify Terraform Files After Profile Removal
         run: cat aws_config/dev/dev.tf  # view dev.tf
