@@ -7,16 +7,28 @@ resource "aws_iam_role" "{ROLE_NAME}" {
       Action = "sts:AssumeRole"
       Effect = "Allow"
       Principal = {
-        Service = "ec2.amazonaws.com"
+        Service = "lambda.amazonaws.com"
       }
     }]
   })
 }
 
-resource "aws_iam_policy_attachment" "{ROLE_NAME}_attach" {
-  name       = "{ROLE_NAME}_attach"
+resource "aws_iam_policy_attachment" "{ROLE_NAME}_s3_attach" {
+  name       = "{ROLE_NAME}_s3_attach"
   roles      = [aws_iam_role.{ROLE_NAME}.name]
   policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+}
+
+resource "aws_iam_policy_attachment" "{ROLE_NAME}_dynamodb_attach" {
+  name       = "{ROLE_NAME}_dynamodb_attach"
+  roles      = [aws_iam_role.{ROLE_NAME}.name]
+  policy_arn = "arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess"
+}
+
+resource "aws_iam_policy_attachment" "{ROLE_NAME}_lambda_attach" {
+  name       = "{ROLE_NAME}_lambda_attach"
+  roles      = [aws_iam_role.{ROLE_NAME}.name]
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 provider "aws" {
