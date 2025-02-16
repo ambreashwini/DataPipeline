@@ -147,6 +147,8 @@ def setup_new_profile(existing_profiles):
         if not aws_region:
             aws_region = "us-east-1"
             logging.info("AWS Region selected as 'us-east-1'")
+        s3_bucket_name = input("Enter S3 Bucket Name: ").strip()
+        dynamodb_table_name = input("Enter DynamoDB Table Name: ").strip()
 
         # Store credentials in AWS CLI config
         subprocess.run(["aws", "configure", "set", "aws_access_key_id", aws_access_key, "--profile", profile])
@@ -158,10 +160,10 @@ def setup_new_profile(existing_profiles):
             continue
         logging.info(f"AWS profile '{profile}' configured successfully. Using this profile.")
         iam_role = get_iam_role(profile)
-        return profile, iam_role, aws_region
+        return profile, iam_role, aws_region, s3_bucket_name, dynamodb_table_name
 
 
-def generate_terraform_files(profile, IAM_role, region):
+def generate_terraform_files(profile, IAM_role, region, s3_bucket_name, dynamodb_table_name ):
     # generate terraform file using template
     logging.info("Generating Terraform files...")
     terraform_dir = "aws_config/dev"
@@ -180,6 +182,8 @@ def generate_terraform_files(profile, IAM_role, region):
         template_content.replace("{AWS_REGION}", region)
         .replace("{AWS_PROFILE}", profile)
         .replace("{ROLE_NAME}", IAM_role)
+        .replace("{S3_BUCKET_NAME}", s3_bucket_name)
+        .replace("{DYNAMODB_TABLE_NAME}", dynamodb_table_name)
     )
 
     with open(dev_tf_file, "w") as tf_file:
@@ -207,9 +211,9 @@ if __name__ == "__main__":
         check_aws_cli()
         check_terraform()
         profiles = list_aws_profiles()
-        profile, IAM_role, region = setup_new_profile(profiles)
+        profile, IAM_role, region, s3_bucket_name, dynamodb_table_name = setup_new_profile(profiles)
         check_iam_permissions(profile)
-        generate_terraform_files(profile, IAM_role, region)
+        generate_terraform_files(profile, IAM_role, region, s3_bucket_name, dynamodb_table_name)
         sys.stdout.flush()
     except KeyboardInterrupt:
         setup_interrupted()
