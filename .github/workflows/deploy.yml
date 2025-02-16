@@ -12,11 +12,19 @@ jobs:
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # ensure latest commit history is pulled
+
+      - name: Debug - List Repo Files Before Terraform
+        run: ls -R aws_config/dev  # check if dev.tf present
+
+      - name: Wait for Files
+        run: sleep 5  # short delay to ensure files are fully available
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v1
         with:
-          terraform_version: latest
+          terraform_version: latest  # install latest terraform
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
@@ -27,8 +35,14 @@ jobs:
 
       - name: Initialize Terraform
         run: terraform init
-        working-directory: aws_config/dev  # path to tf file
+        working-directory: aws_config/dev  # terraform path
+
+      - name: Debug - List Repo Files After Terraform Init
+        run: ls -R aws_config/dev  # terraform files
 
       - name: Apply Terraform
         run: terraform apply -auto-approve
-        working-directory: aws_config/dev  # path to tf file
+        working-directory: aws_config/dev  # terraform path
+
+      - name: Debug - Terraform Apply Completion
+        run: echo "Terraform apply completed successfully."
