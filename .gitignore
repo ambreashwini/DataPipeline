@@ -9,3 +9,4 @@ aws_config/dev/terraform.tfstate
 aws_credentials.yml
 /src/data
 /src/simulator/__pycache__
+.env
