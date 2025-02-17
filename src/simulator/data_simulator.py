@@ -7,10 +7,10 @@ import sys
 import yaml
 import logging
 from datetime import datetime, UTC
-from utils.s3_utils import S3Utils
+from s3_utils import S3Utils
 
 # Load Configuration
-with open("config/config.yaml", "r") as f:
+with open("simulator/config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
 LOCAL_CONFIG = config["local"]
@@ -32,23 +32,33 @@ def generate_data():
     site_number = random.randint(1, 100)
     site_id = f'SITECA{site_number:03d}'
 
+    energy_generated = round(random.uniform(10, 200), 2)
+    energy_consumed = round(random.uniform(5, 180), 2)
+
+    #  force anomalous data for generated and consumed energy
+    if random.random() < 0.1:
+        energy_generated = round(random.uniform(-2, 0), 2)
+
+    if random.random() < 0.1:
+        energy_consumed = round(random.uniform(-2, 0), 2)
+
     return {
         'site_id': site_id,
         'timestamp': datetime.now(UTC).strftime(TIMESTAMP_FORMAT),
-        'energy_generated_kwh': round(random.uniform(10, 200), 2),
-        'energy_consumed_kwh': round(random.uniform(5, 180), 2)
+        'energy_generated_kwh': energy_generated,
+        'energy_consumed_kwh': energy_consumed
     }
 
 
 class DataSimulator:
     """
-    - Simulate energy data
-    - Store locally or upload to S3 based on user choice
+    - simulate energy data
+    - store locally or upload to S3 based on user choice
     """
 
     def __init__(self, local_enabled=True, s3_enabled=False):
         """
-        Initialize the simulator based on configuration
+        - initialize the simulator based on configuration
         """
         self.local_enabled = local_enabled
         self.s3_enabled = s3_enabled
@@ -67,14 +77,14 @@ class DataSimulator:
 
     def signal_handler(self, sig, frame):
         """
-        Handle termination signal, if interrupted
+        - handle termination signal, if interrupted
         """
         self.stop_signal = True
         sys.stdout.flush()
 
     def save_data_locally(self):
         """
-        Save collected data to local folder (only for local testing)
+        - save collected data to local folder (only for local testing)
         """
         if not self.data_feed:
             logging.info("Interrupted before next data interval. No new data to save.")
@@ -88,23 +98,9 @@ class DataSimulator:
 
         logging.info(f"Data successfully saved locally at {file_path}")
 
-    def upload_data_to_s3(self):
-        """
-        Upload collected data to S3 if enabled
-        """
-        if not self.data_feed or not self.s3_utils:
-            logging.info("No data to upload OR S3 is not enabled.")
-            return
-
-        timestamp = datetime.now(UTC).strftime(TIMESTAMP_FORMAT)
-        s3_key = f"{timestamp}_data.json"
-
-        if self.s3_utils.upload_json_data(self.data_feed, s3_key):
-            logging.info(f"Successfully uploaded data feed to S3: {s3_key}")
-
     def simulate_data(self, data_interval=5, file_interval=20):
         """
-        Continuously generate and store data to local/s3.
+        - continuously generate and store data to local/s3.
         """
         start_time = time.time()
         last_data_time = start_time
@@ -127,23 +123,23 @@ class DataSimulator:
 
     def _store_data(self):
         """
-        store data locally or in S3
+        - store data locally or in S3
         """
         if self.local_enabled:
             self.save_data_locally()
-        if self.s3_enabled:
-            self.upload_data_to_s3()
+        if self.s3_enabled and self.s3_utils:
+            timestamp = datetime.now(UTC).strftime(TIMESTAMP_FORMAT)
+            s3_key = f"{timestamp}_data.json"
+            self.s3_utils.upload_json_data(self.data_feed, s3_key)
+            logging.info(f"Successfully uploaded data feed to S3: {s3_key}")
 
         self.data_feed = []
 
 
 def main():
-    """
-    entry point the data simulator
-    """
     print("\nPlease select one mode:")
     print("1. Local (Local file simulation only)")
-    print("2. S3 (Simulate data and upload to DynamoDB)")
+    print("2. S3 (Simulate data and upload to S3)")
 
     while True:
         choice = input("\nEnter 1 for Local or 2 for S3: ").strip()
@@ -166,7 +162,7 @@ def main():
         s3_enabled=s3_enabled
     )
 
-    simulator.simulate_data(data_interval=3, file_interval=60)
+    simulator.simulate_data(data_interval=3, file_interval=20)
 
 
 if __name__ == "__main__":

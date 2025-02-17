@@ -6,3 +6,6 @@ aws_config/dev/terraform.tfstate.backup
 .idea/workspace.xml
 /.idea
 aws_config/dev/terraform.tfstate
+aws_credentials.yml
+/src/data
+/src/simulator/__pycache__

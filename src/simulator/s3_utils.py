@@ -1,16 +1,19 @@
-import boto3
 import json
-import yaml
 import logging
+
+import boto3
+import yaml
 from botocore.exceptions import BotoCoreError, NoCredentialsError, ClientError
 
 # Load Configuration from config
-with open("config/config.yaml", "r") as f:
+with open("simulator/config.yaml", "r") as f:
     config = yaml.safe_load(f)
 
 S3_BUCKET_NAME = config["s3_config"]["bucket_name"]
+AWS_PROFILE_NAME = "aws-ui-profile-test"  # Set the profile you need to use
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
 
 class S3Utils:
     """
@@ -18,15 +21,13 @@ class S3Utils:
     """
 
     def __init__(self, bucket_name=S3_BUCKET_NAME):
-        """
-         - Initialize the S3 client
-         - Validate AWS credentials
-         """
+        """Initialize the S3 client using the specified AWS profile"""
         self.bucket_name = bucket_name
 
         try:
-            self.s3_client = boto3.client('s3')
-            logging.info(f"S3Utils initialized for bucket: {self.bucket_name}")
+            session = boto3.Session(profile_name=AWS_PROFILE_NAME)
+            self.s3_client = session.client('s3')
+            logging.info(f"S3Utils initialized for bucket: {self.bucket_name} using profile: {AWS_PROFILE_NAME}")
             self.validate_aws_credentials()
         except NoCredentialsError:
             logging.error("AWS credentials not found. Ensure they are configured correctly.")
@@ -35,9 +36,10 @@ class S3Utils:
             logging.error(f"Error initializing S3 client: {e}")
             raise
 
-    # TODO - update entry to help set up aws configuration using key/secret, perhaps separate
     def validate_aws_credentials(self):
-        """Validate AWS credentials to see if bucket is accessible"""
+        """
+        Validate AWS credentials to see if bucket is accessible
+        """
         try:
             self.s3_client.list_buckets()
             logging.info("AWS credentials validated successfully.")
@@ -49,7 +51,7 @@ class S3Utils:
             raise
 
     def upload_json_data(self, data, s3_key):
-        """Upload a JSON object to S3 bucket"""
+        """ Upload a JSON object to S3 bucket"""
         try:
             json_data = json.dumps(data, indent=4)
             self.s3_client.put_object(

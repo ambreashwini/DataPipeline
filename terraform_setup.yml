@@ -1,0 +1,18 @@
+aws_profile:
+  account_id: '443370715343'
+  arn: arn:aws:iam::443370715343:user/eng-dev
+  profile_name: data-pipeline-local-profile
+  region: us-east-1
+  role: eng-dev
+aws_resources:
+  custom_role: project-data-pipeline-role
+  dynamodb_table: project-data-pipeline-table
+  processor_lambda_function: project-data-pipeline-processor
+  s3_code_bucket: project-data-pipeline-code-bucket
+  s3_data_bucket: project-data-pipeline-data-bucket
+  simulator_lambda_function: project-data-pipeline-simulator
+project_files:
+  config_path: src/config/config.yml
+  requirements_path: requirements.txt
+  s3_utils_path: src/utils/s3_utils.py
+  simulator_path: src/data_simulator.py
