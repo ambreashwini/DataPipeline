@@ -1,15 +1,20 @@
-aws_account_id: '443370715343'
 aws_credentials: aws_credentials.yml
 aws_profile_name: data-pipeline-local-profile
-aws_region:
+aws_region: us-east-1
 project_files:
-  config_path: src/config/config.yml
   requirements_path: requirements.txt
-  s3_utils_path: src/utils/s3_utils.py
-  simulator_path: src/data_simulator.py
+  simulator_path: src/simulator/
+  simulator_zip_path: simulator_lambda.zip
+  processor_path: src/processor/
+  processor_zip_path: processor_lambda.zip
 aws_resources:
   custom_role: project-data-pipeline-role
-  dynamodb_table: project-data-pipeline-table
+  dynamodb_table:
+    name: project-data-pipeline-table
+    partition_key: siteid
+    partition_key_type: S
+    sort_key: timestamp
+    sort_key_type: N
   simulator_lambda_function: project-data-pipeline-simulator
   processor_lambda_function: project-data-pipeline-processor
   s3_code_bucket: project-data-pipeline-code-bucket

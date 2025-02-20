@@ -1,38 +1,47 @@
-import boto3
+"""Lambda - to process s3 data and insert into DynamoDB table."""
+
 import json
+import boto3
 import decimal
 import logging
-import yaml
+import os
 from botocore.exceptions import BotoCoreError, ClientError
 
-# Load Configuration
-with open("config/config.yaml", "r") as f:
-    config = yaml.safe_load(f)
 
-S3_BUCKET_NAME = config["s3_config"]["bucket_name"]
-DYNAMODB_TABLE_NAME = config["s3_config"]["dynamodb_table"]
-TIMESTAMP_FORMAT = config["global"]["timestamp_format"]
+def is_running_in_lambda():
+    """Return environment."""
+    return "AWS_LAMBDA_FUNCTION_NAME" in os.environ
 
-dynamodb = boto3.resource('dynamodb')
-table = dynamodb.Table(DYNAMODB_TABLE_NAME)
 
-s3_client = boto3.client('s3')
+# Moto for local testing only
+if not is_running_in_lambda():
+    from moto import mock_aws
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    mock_aws().start()
+    boto3.setup_default_session()
+
+# Hardcoded values for now
+S3_BUCKET_NAME = "project-data-pipeline-data-bucket"
+DYNAMODB_TABLE_NAME = "project-data-pipeline-table"
+
+# Initialize AWS clients
+dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
+s3_client = boto3.client("s3", region_name="us-east-1")
+
+# Logging setup
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
 
 def process_s3_event(bucket_name, object_key):
-    """
-    Process a single S3 event:
-    - Reads a JSON file from S3
-    - Processes each record one at a time
-    - Stores it in DynamoDB
-    """
+    """Process an S3 event by reading JSON data and storing it in DynamoDB."""
     try:
         logging.info(f"Processing file {object_key} from bucket {bucket_name}")
 
         file_content = read_s3_file(bucket_name, object_key)
         if file_content:
-            for single_record in file_content:  # Process each record individually
+            for single_record in file_content:
                 store_in_dynamodb(single_record, object_key)
 
     except Exception as e:
@@ -40,10 +49,7 @@ def process_s3_event(bucket_name, object_key):
 
 
 def lambda_handler(event, context):
-    """
-    Lambda function triggered by an S3 event.
-    Iterates over records and calls process_s3_event().
-    """
+    """AWS Lambda entry point triggered by S3 events."""
     try:
         for record in event["Records"]:
             bucket_name = record["s3"]["bucket"]["name"]
@@ -57,9 +63,7 @@ def lambda_handler(event, context):
 
 
 def read_s3_file(bucket, object_key):
-    """
-    Load JSON file from S3 bucket.
-    """
+    """Retrieve a JSON file from S3 and return the parsed content."""
     try:
         response = s3_client.get_object(Bucket=bucket, Key=object_key)
         file_content = response["Body"].read().decode("utf-8")
@@ -72,23 +76,32 @@ def read_s3_file(bucket, object_key):
 
 
 def store_in_dynamodb(record, file_name):
-    """
-    Store a single JSON record into DynamoDB.
-    """
-    # TODO - upate to round up or limit decimal places if necessary
-    # net_energy_kwh
-    # -22.560000000000002
+    """Insert a single JSON record into DynamoDB."""
     try:
+        table = dynamodb.Table(
+            DYNAMODB_TABLE_NAME
+        )  # Ensure table reference is inside function scope
         formatted_data = {
             "site_id": record["site_id"],
             "timestamp": record["timestamp"],
-            "energy_generated_kwh": decimal.Decimal(str(record["energy_generated_kwh"])),
+            "energy_generated_kwh": decimal.Decimal(
+                str(record["energy_generated_kwh"])
+            ),
             "energy_consumed_kwh": decimal.Decimal(str(record["energy_consumed_kwh"])),
-            "net_energy_kwh": decimal.Decimal(str(record["energy_generated_kwh"] - record["energy_consumed_kwh"])),
-            "anomaly": record["energy_generated_kwh"] < 0 or record["energy_consumed_kwh"] < 0
+            "net_energy_kwh": decimal.Decimal(
+                str(
+                    round(
+                        record["energy_generated_kwh"] - record["energy_consumed_kwh"],
+                        2,
+                    )
+                )
+            ),
+            "anomaly": bool(
+                record["energy_generated_kwh"] < 0 or record["energy_consumed_kwh"] < 0
+            ),
         }
 
-        table.put_item(Item=formatted_data)  # Inserts a single record
+        table.put_item(Item=formatted_data)
         logging.info(f"Successfully stored record from {file_name} into DynamoDB.")
 
     except (BotoCoreError, ClientError) as e:
