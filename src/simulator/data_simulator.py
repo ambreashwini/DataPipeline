@@ -1,169 +1,183 @@
+"""Lambda - to generate energy data as JSON files and upload them to S3 bucket."""
+
 import json
+import logging
 import os
 import random
-import time
 import signal
 import sys
-import yaml
-import logging
-from datetime import datetime, UTC
-from s3_utils import S3Utils
+import time
+from datetime import datetime, timezone
 
-# Load Configuration
-with open("simulator/config.yaml", "r") as f:
-    config = yaml.safe_load(f)
+import boto3
+from botocore.exceptions import ClientError
+from dotenv import load_dotenv
 
-LOCAL_CONFIG = config["local"]
-S3_CONFIG = config["s3_config"]
-TIMESTAMP_FORMAT = config["global"]["timestamp_format"]
 
+def is_running_in_lambda():
+    """Check if running in AWS Lambda environment."""
+    try:
+        boto3.client("sts").get_caller_identity()  # AWS check
+        return "AWS_LAMBDA_FUNCTION_NAME" in os.environ
+    except:
+        return False
+
+
+# Keep Moto for local testing only
+if not is_running_in_lambda():
+    from moto import mock_aws
+
+# Load environment variables
+load_dotenv()
+TIMESTAMP_FORMAT = "%Y_%m_%d_%H_%M_%S"
+AWS_BUCKET_NAME = "project-data-pipeline-data-bucket"
+
+# Define environment (AWS or Local)
+ENVIRONMENT = os.getenv("ENVIRONMENT", "AWS").upper()
+USE_MOCK = ENVIRONMENT == "LOCAL"  # Use mock S3 for local testing
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 
 
-def generate_data():
-    """
-    Generate a single energy data record
-    """
-    site_number = random.randint(1, 100)
-    site_id = f'SITECA{site_number:03d}'
+class S3Utils:
+    """Upload data to s3 bucket."""
 
-    energy_generated = round(random.uniform(10, 200), 2)
-    energy_consumed = round(random.uniform(5, 180), 2)
+    def __init__(self, bucket_name=AWS_BUCKET_NAME, mock=USE_MOCK):
+        """Initialize S3 client. Uses mock S3 in test mode."""
+        self.bucket_name = bucket_name
+        self.mock = mock
 
-    #  force anomalous data for generated and consumed energy
-    if random.random() < 0.1:
-        energy_generated = round(random.uniform(-2, 0), 2)
+        if self.mock:
+            logging.info("Using Moto mock S3 (no credentials required).")
+            self.mock_s3 = mock_aws()
+            self.mock_s3.start()
+            self.s3_client = boto3.client("s3", region_name="us-east-1")
+            self._create_mock_bucket()
+        else:
+            logging.info("Running in AWS environment.")
+            self.s3_client = boto3.client("s3")  # Use IAM role, no profile
 
-    if random.random() < 0.1:
-        energy_consumed = round(random.uniform(-2, 0), 2)
+        logging.info(
+            f"S3Utils initialized for bucket: {self.bucket_name} (mock={self.mock})"
+        )
 
-    return {
-        'site_id': site_id,
-        'timestamp': datetime.now(UTC).strftime(TIMESTAMP_FORMAT),
-        'energy_generated_kwh': energy_generated,
-        'energy_consumed_kwh': energy_consumed
-    }
+    def _create_mock_bucket(self):
+        """Ensure the S3 bucket is created when running locally in mock mode."""
+        try:
+            self.s3_client.create_bucket(Bucket=self.bucket_name)
+            logging.info(f"Mock S3 bucket '{self.bucket_name}' created successfully.")
+        except self.s3_client.exceptions.BucketAlreadyOwnedByYou:
+            logging.info(f"Mock S3 bucket '{self.bucket_name}' already exists.")
+        except Exception as e:
+            logging.error(f"Error creating mock S3 bucket: {e}")
+
+    def upload_json_data(self, data, s3_key):
+        """Upload data to S3 or mock S3 in test mode."""
+        try:
+            json_data = json.dumps(data, indent=4)
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=s3_key,
+                Body=json_data,
+                ContentType="application/json",
+            )
+            logging.info(f"Uploaded JSON data to s3://{self.bucket_name}/{s3_key}")
+            return True
+        except ClientError as e:
+            logging.error(f"Failed to upload JSON data to S3: {e}")
+            return False
+
+    def stop_mock(self):
+        """Stop the Moto mock when the simulator exits."""
+        if self.mock:
+            self.mock_s3.stop()
 
 
 class DataSimulator:
-    """
-    - simulate energy data
-    - store locally or upload to S3 based on user choice
-    """
+    """To generate and store energy data in s3 bucket."""
 
-    def __init__(self, local_enabled=True, s3_enabled=False):
-        """
-        - initialize the simulator based on configuration
-        """
-        self.local_enabled = local_enabled
-        self.s3_enabled = s3_enabled
-        self.local_data_path = os.path.abspath(LOCAL_CONFIG["data_path"])
+    def __init__(self, mock=USE_MOCK):
+        """Initialize the data simulator with S3Utils."""
+        self.mock = mock
         self.stop_signal = False
         self.data_feed = []
+        self.s3_utils = S3Utils(bucket_name=AWS_BUCKET_NAME, mock=self.mock)
 
-        if self.local_enabled:
-            os.makedirs(self.local_data_path, exist_ok=True)
-            logging.info(f"Local data path: {self.local_data_path}")
+        signal.signal(signal.SIGINT, self._signal_handler)
+        logging.info(f"DataSimulator initialized successfully (mock={self.mock}).")
 
-        signal.signal(signal.SIGINT, self.signal_handler)
-        logging.info("DataSimulator initialized successfully.")
-
-        self.s3_utils = S3Utils(bucket_name=S3_CONFIG["bucket_name"]) if self.s3_enabled else None
-
-    def signal_handler(self, sig, frame):
-        """
-        - handle termination signal, if interrupted
-        """
+    def _signal_handler(self, sig, frame):
+        """Gracefully handle termination signals."""
         self.stop_signal = True
         sys.stdout.flush()
 
-    def save_data_locally(self):
-        """
-        - save collected data to local folder (only for local testing)
-        """
+    def _store_data(self):
+        """Upload data to S3."""
         if not self.data_feed:
-            logging.info("Interrupted before next data interval. No new data to save.")
+            logging.info("No new data to save.")
             return
 
-        timestamp = datetime.now(UTC).strftime(TIMESTAMP_FORMAT)
-        file_path = os.path.join(self.local_data_path, f"{timestamp}_data.json")
+        timestamp = datetime.now(timezone.utc).strftime(TIMESTAMP_FORMAT)
+        file_name = f"{timestamp}_data.json"
 
-        with open(file_path, 'w') as f:
-            json.dump(self.data_feed, f, indent=4)
-
-        logging.info(f"Data successfully saved locally at {file_path}")
-
-    def simulate_data(self, data_interval=5, file_interval=20):
-        """
-        - continuously generate and store data to local/s3.
-        """
-        start_time = time.time()
-        last_data_time = start_time
-
-        while not self.stop_signal:
-            current_time = time.time()
-
-            if current_time - last_data_time >= data_interval:
-                self.data_feed.append(generate_data())
-                last_data_time = current_time
-
-            if current_time - start_time >= file_interval:
-                self._store_data()
-                start_time = time.time()
-
-            time.sleep(0.5)
-
-        self._store_data()
-        logging.info("Final data saved and uploaded. Exiting gracefully.")
-
-    def _store_data(self):
-        """
-        - store data locally or in S3
-        """
-        if self.local_enabled:
-            self.save_data_locally()
-        if self.s3_enabled and self.s3_utils:
-            timestamp = datetime.now(UTC).strftime(TIMESTAMP_FORMAT)
-            s3_key = f"{timestamp}_data.json"
-            self.s3_utils.upload_json_data(self.data_feed, s3_key)
-            logging.info(f"Successfully uploaded data feed to S3: {s3_key}")
-
+        logging.info("Saving data to S3 bucket")
+        self.s3_utils.upload_json_data(self.data_feed, file_name)
+        logging.info(f"Uploaded data to S3: {file_name}")
         self.data_feed = []
 
+    def generate_data(self):
+        """Generate random energy generation and consumption data."""
+        site_number = random.randint(1, 100)
+        site_id = f"SITECA{site_number:03d}"
+        energy_generated = round(random.uniform(10, 200), 2)
+        energy_consumed = round(random.uniform(5, 180), 2)
 
-def main():
-    print("\nPlease select one mode:")
-    print("1. Local (Local file simulation only)")
-    print("2. S3 (Simulate data and upload to S3)")
+        if random.random() < 0.1:
+            energy_generated = round(random.uniform(-2, 0), 2)
+        if random.random() < 0.1:
+            energy_consumed = round(random.uniform(-2, 0), 2)
 
-    while True:
-        choice = input("\nEnter 1 for Local or 2 for S3: ").strip()
-        if choice in ["1", "2"]:
-            break
-        print("Invalid selection. Please enter 1 or 2.")
+        return {
+            "site_id": site_id,
+            "timestamp": int(datetime.now(timezone.utc).timestamp()),
+            "energy_generated_kwh": energy_generated,
+            "energy_consumed_kwh": energy_consumed,
+        }
 
-    local_enabled = choice == "1"
-    s3_enabled = choice == "2"
+    def simulate_data(self, data_interval=20):
+        """Generate and upload energy data every 5 minutes."""
+        start_time = time.time()
 
-    if s3_enabled:
-        bucket_name = input(f"Enter S3 bucket name [{S3_CONFIG['bucket_name']}]: ") or S3_CONFIG['bucket_name']
-        S3_CONFIG["bucket_name"] = bucket_name
-        logging.info(f"S3 data simulation enabled with bucket [{S3_CONFIG['bucket_name']}]")
-    else:
-        logging.info(f"Local simulation enabled. Data will be saved at - {LOCAL_CONFIG['data_path']}")
+        while time.time() - start_time < 295:  # stop before event is triggered
+            data = self.generate_data()
+            logging.info(f"Generated data: {data}")
+            self.data_feed.append(data)
+            time.sleep(data_interval)
 
-    simulator = DataSimulator(
-        local_enabled=local_enabled,
-        s3_enabled=s3_enabled
-    )
+        self._store_data()
+        logging.info("Exiting Lambda.")
+        logging.info("Final data saved and uploaded. Exiting gracefully.")
 
-    simulator.simulate_data(data_interval=3, file_interval=20)
+
+def main(event=None, context=None, mock=USE_MOCK):
+    """Entry point for lambda execution."""
+    simulator = DataSimulator(mock=mock)
+    simulator.simulate_data(data_interval=20)
 
 
 if __name__ == "__main__":
     main()
+
+
+def lambda_handler(event, context):
+    """AWS Lambda entry point."""
+    logging.info("Lambda function started.")
+    main(event, context, mock=False)
+    return {
+        "statusCode": 200,
+        "body": json.dumps("Simulator Lambda executed successfully."),
+    }

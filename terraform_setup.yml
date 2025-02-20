@@ -3,16 +3,22 @@ aws_profile:
   arn: arn:aws:iam::443370715343:user/eng-dev
   profile_name: data-pipeline-local-profile
   region: us-east-1
-  role: eng-dev
+  user: eng-dev
 aws_resources:
   custom_role: project-data-pipeline-role
-  dynamodb_table: project-data-pipeline-table
+  dynamodb_table:
+    name: project-data-pipeline-table
+    partition_key: siteid
+    partition_key_type: S
+    sort_key: timestamp
+    sort_key_type: N
   processor_lambda_function: project-data-pipeline-processor
   s3_code_bucket: project-data-pipeline-code-bucket
   s3_data_bucket: project-data-pipeline-data-bucket
   simulator_lambda_function: project-data-pipeline-simulator
 project_files:
-  config_path: src/config/config.yml
+  processor_path: src/processor/
+  processor_zip_path: processor_lambda.zip
   requirements_path: requirements.txt
-  s3_utils_path: src/utils/s3_utils.py
-  simulator_path: src/data_simulator.py
+  simulator_path: src/simulator/
+  simulator_zip_path: simulator_lambda.zip
