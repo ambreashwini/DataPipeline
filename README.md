@@ -2,39 +2,54 @@
 
 This project simulates energy data, uploads it to AWS S3, and processes it for storage in DynamoDB.
 
-## Features
+### Features
 - **DataSimulator**: Continuously generates energy data and stores it locally or uploads it to S3.
 - **S3 Data Processor**: Processes S3 data and inserts records into DynamoDB.
 
-## Prerequisites
-1. Python 3.13 (tested) or Python 3.10+ (for broader compatibility)
+### Prerequisites
+1. Python 3.12 (tested) or Python 3.10+ (for broader compatibility)
 2. IAM User credentials, AWS Account ID
 
-## Setup Instructions
+### Setup Instructions
 
-1. Clone the repository - `git clone <https://github.com/ambreashwini/DataPipeline.git>`
-2. Change directory - `cd DataPipeline`
+1. Clone the repository - 
+   ```
+   git clone <https://github.com/ambreashwini/DataPipeline.git>
+   ```
+2. Change directory -
+   ```
+   cd DataPipeline
+   ```
 3. Create a virtual environment (optional but recommended) -
-   `python3 -m venv .venv
-    source .venv/bin/activate`
-4. Install dependencies - `pip install -r requirements.txt`
-5. Configure AWS Credentials - https://docs.aws.amazon.com/cli/v1/userguide/cli-chap-configure.html
-6. Set up your environment variables:
+   ```
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+4. Install dependencies - 
+   ```
+   pip install -r requirements.txt
+   ```
+5. Set up your environment variables:
    1. Create a `.env` file at the root of the project and add the following:
       `ENVIRONMENT=LOCAL`
-   2. Create a `aws_credentials.yml` and add your credentials as below:
-      `{
+6. Create a `aws_credentials.yml` and add your credentials as below:
+      ```
+      {
         "aws_access_key_id":"<AWS USER ACCESS KEY ID>",
         "aws_secret_access_key":"<AWS USER SECRET>"
-      }`
-7. Once ready, run setup - `python3 setup.py`
-8. Once setup is successful verify your profile is set for next steps:
+      }
+      ```
+7. Once ready, run setup - 
+   ```
+   python3 setup.py
+   ```
+8. Once setup is successful verify your profile is set for next steps(Additional help:https://docs.aws.amazon.com/cli/v1/userguide/cli-chap-configure.html):
    1. Check if your profile is already set - ```aws configure list```
    2. If not then - ```export AWS_PROFILE=data-pipeline-local-profile```
    3. Verify once more - ```aws configure list```, you should see profile now.
-9. Continue to deployment steps
+9. Continue to infrastructure deployment steps.
 
-## AWS CLI Commands for deployment (after setup.py, WIP)
+### AWS CLI Commands for infrastructure deployment (after setup.py, WIP)
 1. Check AWS Credentials
    ```
    aws sts get-caller-identity --profile data-pipeline-local-profile
@@ -57,7 +72,7 @@ This project simulates energy data, uploads it to AWS S3, and processes it for s
            }]
        }'
    ```
-4. Attach Policies for S3, DynamoDB, and Log
+5. Attach Policies for S3, DynamoDB, and Log
    ```
    aws iam put-role-policy \
        --role-name project-data-pipeline-role \
@@ -86,15 +101,15 @@ This project simulates energy data, uploads it to AWS S3, and processes it for s
            ]
        }'
    ```
-5. Create S3 Bucket for lambda code
+6. Create S3 Bucket for lambda code
    ```
    aws s3api create-bucket --bucket project-data-pipeline-code-bucket --region us-east-1
    ```
-6. Create S3 Bucket for data
+7. Create S3 Bucket for data
    ```
    aws s3api create-bucket --bucket project-data-pipeline-data-bucket --region us-east-1
    ```
-7. Create DynamoDB Table
+8. Create DynamoDB Table
    ```
    aws dynamodb create-table \
        --table-name project-data-pipeline-table \
@@ -102,7 +117,7 @@ This project simulates energy data, uploads it to AWS S3, and processes it for s
        --key-schema AttributeName=site_id,KeyType=HASH AttributeName=timestamp,KeyType=RANGE \
        --billing-mode PAY_PER_REQUEST
    ```
-8. Simulator Lambda - package, upload to s3 and clean up
+9. Simulator Lambda - package, upload to s3 and clean up
    ```
    mkdir -p simulator_package
    pip install -r requirements.txt -t simulator_package/
@@ -111,18 +126,18 @@ This project simulates energy data, uploads it to AWS S3, and processes it for s
    aws s3 cp simulator_lambda.zip s3://project-data-pipeline-code-bucket/
    rm -rf simulator_package simulator_lambda.zip
    ```
-9. Deploy Simulator Lambda function
-   ```
-   aws lambda create-function \
-       --function-name project-data-pipeline-simulator \
-       --runtime python3.12 \
-       --role arn:aws:iam::<ACCOUNT_ID>:role/project-data-pipeline-role \
-       --handler data_simulator.lambda_handler \
-       --timeout 300 \
-       --memory-size 128 \
-       --code S3Bucket=project-data-pipeline-code-bucket,S3Key=simulator_lambda.zip
-   ```
-10. Processor Lambda - package, upload to s3 and clean up-
+10. Deploy Simulator Lambda function
+    ```
+    aws lambda create-function \
+        --function-name project-data-pipeline-simulator \
+        --runtime python3.12 \
+        --role arn:aws:iam::<ACCOUNT_ID>:role/project-data-pipeline-role \
+        --handler data_simulator.lambda_handler \
+        --timeout 300 \
+        --memory-size 128 \
+        --code S3Bucket=project-data-pipeline-code-bucket,S3Key=simulator_lambda.zip
+    ```
+11. Processor Lambda - package, upload to s3 and clean up-
     ```
       mkdir -p processor_package
       pip install -r requirements.txt -t processor_package/
@@ -131,7 +146,7 @@ This project simulates energy data, uploads it to AWS S3, and processes it for s
       aws s3 cp processor_lambda.zip s3://project-data-pipeline-code-bucket/
       rm -rf processor_package processor_lambda.zip
     ```
-11. Deploy Processor Lambda function -
+12. Deploy Processor Lambda function -
    ```
       aws lambda create-function \
           --function-name project-data-pipeline-processor \
@@ -140,13 +155,13 @@ This project simulates energy data, uploads it to AWS S3, and processes it for s
           --handler s3_data_processor.lambda_handler \
           --code S3Bucket=project-data-pipeline-code-bucket,S3Key=processor_lambda.zip
    ```
-12. Create EventBridge Rule to invoke Simulator Lambda function every 5 Minutes -
+13. Create EventBridge Rule to invoke Simulator Lambda function every 5 Minutes -
    ```
    aws events put-rule \
     --name invoke-simulator-every-five-mins \
     --schedule-expression "rate(5 minutes)"
    ```
-13. Grant EventBridge permissions to invoke Simulator Lambda -
+14. Grant EventBridge permissions to invoke Simulator Lambda -
    ```
       aws lambda add-permission \
     --function-name project-data-pipeline-simulator \
@@ -155,13 +170,13 @@ This project simulates energy data, uploads it to AWS S3, and processes it for s
     --principal events.amazonaws.com \
     --source-arn arn:aws:events:us-east-1:<ACCOUNT_ID>:rule/invoke-simulator-every-five-mins
    ```
-14. Attach Simulator Lambda as the target to EventBridge rule -
+15. Attach Simulator Lambda as the target to EventBridge rule -
    ```
    aws events put-targets \
     --rule invoke-simulator-every-five-mins \
     --targets "Id"="1","Arn"="arn:aws:lambda:us-east-1:<ACCOUNT_ID>:function:project-data-pipeline-simulator"
    ```
-15. Grant S3 Permission to invoke Processor Lambda -
+16. Grant S3 Permission to invoke Processor Lambda -
    ```aws lambda add-permission \
     --function-name project-data-pipeline-processor \
     --statement-id s3invoke \
@@ -170,7 +185,7 @@ This project simulates energy data, uploads it to AWS S3, and processes it for s
     --source-arn arn:aws:s3:::project-data-pipeline-data-bucket \
     --source-account <ACCOUNT_ID>
    ```
-16. Configure S3 Event Notification to Trigger Processor Lambda -
+17. Configure S3 Event Notification to Trigger Processor Lambda -
    ```
    aws s3api put-bucket-notification-configuration \
        --bucket project-data-pipeline-data-bucket \
@@ -191,7 +206,7 @@ This project simulates energy data, uploads it to AWS S3, and processes it for s
        }'
    ```
 
-# Verification of infrastructure deployment:
+### Verification of infrastructure deployment:
 1. List functions - `aws lambda list-functions | grep project-data-pipeline`
 2. List buckets - `aws s3 ls `
 3. List bucket contents - `aws s3 ls s3://project-data-pipeline-data-bucket/`
@@ -208,19 +223,9 @@ This project simulates energy data, uploads it to AWS S3, and processes it for s
 7. Verify Data in DynamoDB Table - `aws dynamodb scan --table-name project-data-pipeline-table`
 
 
-# Note -
+### Note:
 Use the following checklist to remove resources to avoid incurring unnecessary costs:
 - Delete the S3 bucket and its contents.
 - Delete the DynamoDB table.
 - Delete the Lambda function and associated logs.
 - Delete IAM roles and policies.
-
-
-## To-Do
-- Handle scalability - batch write to DynamoDB (currently single item )
-- Visualizing the processed data
-- API to query data
-- Automated deployment using Terraform
-
-# Improvements 
-- Package only necessary dependencies for Lambda
