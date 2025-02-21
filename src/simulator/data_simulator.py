@@ -148,19 +148,31 @@ class DataSimulator:
             "energy_consumed_kwh": energy_consumed,
         }
 
-    def simulate_data(self, data_interval=20):
-        """Generate and upload energy data every 5 minutes."""
+    def simulate_data(self, data_interval=20, context=None):
+        """Generate energy data every `data_interval` seconds and upload a single file before Lambda exits."""
+        self.data_feed = []
+        logging.info("Simulation started.")
+
         start_time = time.time()
 
-        while time.time() - start_time < 295:  # stop before event is triggered
+        while True:
+            if context:
+                remaining_time = context.get_remaining_time_in_millis() / 1000
+            else:
+                remaining_time = 300 - (time.time() - start_time)
+
+            if remaining_time < 15:  # Stop early to ensure data is saved
+                logging.info("Approaching timeout. Uploading data and exiting.")
+                break
+
             data = self.generate_data()
             logging.info(f"Generated data: {data}")
             self.data_feed.append(data)
+
             time.sleep(data_interval)
 
         self._store_data()
-        logging.info("Exiting Lambda.")
-        logging.info("Final data saved and uploaded. Exiting gracefully.")
+        logging.info("Lambda execution complete.")
 
 
 def main(event=None, context=None, mock=USE_MOCK):

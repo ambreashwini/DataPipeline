@@ -100,7 +100,8 @@ def store_in_dynamodb(record, file_name):
                 record["energy_generated_kwh"] < 0 or record["energy_consumed_kwh"] < 0
             ),
         }
-
+        if formatted_data["anomaly"]:
+            logging.warning(f"Anomaly detected in record: {formatted_data}")
         table.put_item(Item=formatted_data)
         logging.info(f"Successfully stored record from {file_name} into DynamoDB.")
 

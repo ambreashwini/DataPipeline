@@ -1,6 +1,6 @@
 # Energy Data Pipeline
 
-This project simulates energy data, stores it locally or uploads it to AWS S3, and processes it for storage in DynamoDB.
+This project simulates energy data, uploads it to AWS S3, and processes it for storage in DynamoDB.
 
 ## Features
 - **DataSimulator**: Continuously generates energy data and stores it locally or uploads it to S3.
@@ -28,7 +28,11 @@ This project simulates energy data, stores it locally or uploads it to AWS S3, a
         "aws_secret_access_key":"<AWS USER SECRET>"
       }`
 7. Once ready, run setup - `python3 setup.py`
-8. Once setup is successful move on to deployment steps
+8. Once setup is successful verify your profile is set for next steps:
+   1. Check if your profile is already set - ```aws configure list```
+   2. If not then - ```export AWS_PROFILE=data-pipeline-local-profile```
+   3. Verify once more - ```aws configure list```, you should see profile now.
+9. Continue to deployment steps
 
 ## AWS CLI Commands for deployment (after setup.py, WIP)
 1. Check AWS Credentials
@@ -36,8 +40,11 @@ This project simulates energy data, stores it locally or uploads it to AWS S3, a
    aws sts get-caller-identity --profile data-pipeline-local-profile
    ```
 2. If you don't see, reconfigure -
-   ```aws configure --profile data-pipeline-local-profile```
-3. Create IAM Role for Lambda
+   ```
+   aws configure --profile data-pipeline-local-profile
+   ```
+3. Note the Account ID and replace it in below steps.
+4. Create IAM Role for Lambda
    ```
    aws iam create-role \
        --role-name project-data-pipeline-role \
@@ -140,7 +147,8 @@ This project simulates energy data, stores it locally or uploads it to AWS S3, a
     --schedule-expression "rate(5 minutes)"
    ```
 13. Grant EventBridge permissions to invoke Simulator Lambda -
-   ```aws lambda add-permission \
+   ```
+      aws lambda add-permission \
     --function-name project-data-pipeline-simulator \
     --statement-id event-bridge-invoke \
     --action lambda:InvokeFunction \
@@ -183,13 +191,6 @@ This project simulates energy data, stores it locally or uploads it to AWS S3, a
        }'
    ```
 
-# Note -
-Use the following checklist to remove resources to avoid incurring unnecessary costs:
-- Delete the S3 bucket and its contents.
-- Delete the DynamoDB table.
-- Delete the Lambda function and associated logs.
-- Delete IAM roles and policies.
-
 # Verification of infrastructure deployment:
 1. List functions - `aws lambda list-functions | grep project-data-pipeline`
 2. List buckets - `aws s3 ls `
@@ -197,12 +198,22 @@ Use the following checklist to remove resources to avoid incurring unnecessary c
 4. List tables - `aws dynamodb list-tables`
 5. List events - `aws events list-rules | grep invoke-simulator`
 6. Verify Processor Lambda Execution -
-`aws lambda invoke \
+   ```
+   aws lambda invoke \
     --function-name project-data-pipeline-processor \
     --payload '{"test": "data"}' \
     response.json
-cat response.json`
+   cat response.json
+   ```
 7. Verify Data in DynamoDB Table - `aws dynamodb scan --table-name project-data-pipeline-table`
+
+
+# Note -
+Use the following checklist to remove resources to avoid incurring unnecessary costs:
+- Delete the S3 bucket and its contents.
+- Delete the DynamoDB table.
+- Delete the Lambda function and associated logs.
+- Delete IAM roles and policies.
 
 
 ## To-Do
@@ -210,4 +221,6 @@ cat response.json`
 - Visualizing the processed data
 - API to query data
 - Automated deployment using Terraform
-- 
+
+# Improvements 
+- Package only necessary dependencies for Lambda
