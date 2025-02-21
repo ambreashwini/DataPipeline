@@ -134,10 +134,11 @@ class DataSimulator:
         site_number = random.randint(1, 100)
         site_id = f"SITECA{site_number:03d}"
         energy_generated = round(random.uniform(10, 200), 2)
-        energy_consumed = round(random.uniform(5, 180), 2)
+        energy_consumed = round(random.uniform(1, energy_generated), 2)
 
         if random.random() < 0.1:
             energy_generated = round(random.uniform(-2, 0), 2)
+
         if random.random() < 0.1:
             energy_consumed = round(random.uniform(-2, 0), 2)
 
