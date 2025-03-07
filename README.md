@@ -147,47 +147,48 @@ This project simulates energy data, uploads it to AWS S3, and processes it for s
       rm -rf processor_package processor_lambda.zip
     ```
 12. Deploy Processor Lambda function -
-   ```
+    ```
       aws lambda create-function \
           --function-name project-data-pipeline-processor \
           --runtime python3.12 \
           --role arn:aws:iam::<ACCOUNT_ID>:role/project-data-pipeline-role \
           --handler s3_data_processor.lambda_handler \
           --code S3Bucket=project-data-pipeline-code-bucket,S3Key=processor_lambda.zip
-   ```
+    ```
 13. Create EventBridge Rule to invoke Simulator Lambda function every 5 Minutes -
-   ```
-   aws events put-rule \
-    --name invoke-simulator-every-five-mins \
-    --schedule-expression "rate(5 minutes)"
-   ```
+    ```
+      aws events put-rule \
+       --name invoke-simulator-every-five-mins \
+       --schedule-expression "rate(5 minutes)"
+    ```
 14. Grant EventBridge permissions to invoke Simulator Lambda -
-   ```
+    ```
       aws lambda add-permission \
     --function-name project-data-pipeline-simulator \
     --statement-id event-bridge-invoke \
     --action lambda:InvokeFunction \
     --principal events.amazonaws.com \
     --source-arn arn:aws:events:us-east-1:<ACCOUNT_ID>:rule/invoke-simulator-every-five-mins
-   ```
+    ```
 15. Attach Simulator Lambda as the target to EventBridge rule -
-   ```
-   aws events put-targets \
-    --rule invoke-simulator-every-five-mins \
-    --targets "Id"="1","Arn"="arn:aws:lambda:us-east-1:<ACCOUNT_ID>:function:project-data-pipeline-simulator"
-   ```
+    ```
+      aws events put-targets \
+       --rule invoke-simulator-every-five-mins \
+       --targets "Id"="1","Arn"="arn:aws:lambda:us-east-1:<ACCOUNT_ID>:function:project-data-pipeline-simulator"
+    ```
 16. Grant S3 Permission to invoke Processor Lambda -
-   ```aws lambda add-permission \
+    ```
+    aws lambda add-permission \
     --function-name project-data-pipeline-processor \
     --statement-id s3invoke \
     --action lambda:InvokeFunction \
     --principal s3.amazonaws.com \
     --source-arn arn:aws:s3:::project-data-pipeline-data-bucket \
     --source-account <ACCOUNT_ID>
-   ```
+    ```
 17. Configure S3 Event Notification to Trigger Processor Lambda -
-   ```
-   aws s3api put-bucket-notification-configuration \
+    ```
+      aws s3api put-bucket-notification-configuration \
        --bucket project-data-pipeline-data-bucket \
        --notification-configuration '{
            "LambdaFunctionConfigurations": [
@@ -204,7 +205,7 @@ This project simulates energy data, uploads it to AWS S3, and processes it for s
                }
            ]
        }'
-   ```
+    ```
 
 ### Verification of infrastructure deployment:
 1. List functions - `aws lambda list-functions | grep project-data-pipeline`
